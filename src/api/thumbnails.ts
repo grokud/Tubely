@@ -3,6 +3,7 @@ import { respondWithJSON } from "./json";
 import { getVideo, updateVideo } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
+import { join } from "path"
 import { BadRequestError, UserForbiddenError } from "./errors";
 
 
@@ -18,7 +19,6 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 
   console.log("uploading thumbnail for video", videoId, "by user", userID);
 
-  // TODO: implement the upload here
   const formData = await req.formData();
   const file = formData.get("thumbnail");
   if (!(file instanceof File)) {
@@ -29,25 +29,34 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   if (file.size > MAX_UPLOAD_SIZE) {
 	  throw new BadRequestError("Exceeds the maximum size");
   }
+  
 
-  const imageData = await file.arrayBuffer();
   const video = getVideo(cfg.db, videoId);
   if (video && video.userID !== userID) {
 	  throw new UserForbiddenError("Not an owner of the video");
   }
 
- // upload thumbnail 
- // encode the image into string and store in the table
-  const buffer = Buffer.from(imageData)
-  const text = buffer.toString('base64');
-  const mediaType = "text/plian";
-  const dataUrl = `data: ${mediaType};base64,${text}`;
-  if (video) { 
-      video.thumbnailURL = dataUrl;
-      updateVideo(cfg.db, video)
+  const imageFormat = file.type;
+  switch(imageFormat) {
+      case "image/jpeg":
+      case "image/png":
+       {
+         const imageData = await file.arrayBuffer();
+         const bytes = new Uint8Array(imageData)
+         const fileExtension = imageFormat.split("/")[1];
+         const filePath = join(cfg.assetsRoot, videoId, `.${fileExtension}`);
+         await Bun.write(filePath, bytes);
+         const thumbnailUrl = `http://localhost:${cfg.port}${filePath}`;
+         if (video) { 
+            video.thumbnailURL = thumbnailUrl;
+            updateVideo(cfg.db, video)
+         }
+
+         const payload = getVideo(cfg.db, videoId)
+         return respondWithJSON(200, payload);
+       }
+      default:
+         throw new BadRequestError("Not an image file format");
   }
- 
-  
-  const payload = getVideo(cfg.db, videoId)
-  return respondWithJSON(200, payload);
+   
 }
