@@ -3,38 +3,9 @@ import { respondWithJSON } from "./json";
 import { getVideo, updateVideo } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
-import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import { BadRequestError, UserForbiddenError } from "./errors";
 
-type Thumbnail = {
-  data: ArrayBuffer;
-  mediaType: string;
-};
 
-const videoThumbnails: Map<string, Thumbnail> = new Map();
-
-export async function handlerGetThumbnail(cfg: ApiConfig, req: BunRequest) {
-  const { videoId } = req.params as { videoId?: string };
-  if (!videoId) {
-    throw new BadRequestError("Invalid video ID");
-  }
-
-  const video = getVideo(cfg.db, videoId);
-  if (!video) {
-    throw new NotFoundError("Couldn't find video");
-  }
-
-  const thumbnail = videoThumbnails.get(videoId);
-  if (!thumbnail) {
-    throw new NotFoundError("Thumbnail not found");
-  }
-
-  return new Response(thumbnail.data, {
-    headers: {
-      "Content-Type": thumbnail.mediaType,
-      "Cache-Control": "no-store",
-    },
-  });
-}
 
 export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   const { videoId } = req.params as { videoId?: string };
@@ -59,20 +30,23 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 	  throw new BadRequestError("Exceeds the maximum size");
   }
 
-  const imageFormat = file.type;
   const imageData = await file.arrayBuffer();
   const video = getVideo(cfg.db, videoId);
   if (video && video.userID !== userID) {
 	  throw new UserForbiddenError("Not an owner of the video");
   }
 
-  const thumbnailObj = { data: imageData, mediaType: imageFormat }
-  videoThumbnails.set(videoId, thumbnailObj);
-  const thumbnailUrl = `http://localhost:${cfg.port}/api/thumbnails/${videoId}`;
-  if (video) {
-	  video.thumbnailURL = thumbnailUrl;
-          updateVideo(cfg.db, video);
+ // upload thumbnail 
+ // encode the image into string and store in the table
+  const buffer = Buffer.from(imageData)
+  const text = buffer.toString('base64');
+  const mediaType = "text/plian";
+  const dataUrl = `data: ${mediaType};base64,${text}`;
+  if (video) { 
+      video.thumbnailURL = dataUrl;
+      updateVideo(cfg.db, video)
   }
+ 
   
   const payload = getVideo(cfg.db, videoId)
   return respondWithJSON(200, payload);
