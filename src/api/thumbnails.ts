@@ -37,26 +37,22 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   }
 
   const imageFormat = file.type;
-  switch(imageFormat) {
-      case "image/jpeg":
-      case "image/png":
-       {
-         const imageData = await file.arrayBuffer();
-         const bytes = new Uint8Array(imageData)
-         const fileExtension = imageFormat.split("/")[1];
-         const filePath = join(cfg.assetsRoot, videoId, `.${fileExtension}`);
-         await Bun.write(filePath, bytes);
-         const thumbnailUrl = `http://localhost:${cfg.port}${filePath}`;
-         if (video) { 
-            video.thumbnailURL = thumbnailUrl;
-            updateVideo(cfg.db, video)
-         }
-
-         const payload = getVideo(cfg.db, videoId)
-         return respondWithJSON(200, payload);
-       }
-      default:
-         throw new BadRequestError("Not an image file format");
+  if (imageFormat !== "image/png" || imageFormat !== "image/jpeg" as string) {
+      throw new BadRequestError("Not an image file format");
   }
-   
+
+  const imageData = await file.arrayBuffer();
+  const bytes = new Uint8Array(imageData)
+  const fileExtension = imageFormat.split("/")[1];
+  const filePath = join(cfg.assetsRoot, videoId, `.${fileExtension}`);
+  await Bun.write(filePath, bytes);
+  const thumbnailUrl = `http://localhost:${cfg.port}${filePath}`;
+  if (video) { 
+      video.thumbnailURL = thumbnailUrl;
+      updateVideo(cfg.db, video)
+  }
+
+  const payload = getVideo(cfg.db, videoId)
+  return respondWithJSON(200, payload);
+
 }
