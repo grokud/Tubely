@@ -40,9 +40,13 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
       throw new BadRequestError("Not an image file format");
   }
 
+  const { randomBytes } = await import('node:crypto');
+  const randomString = randomBytes(32).toString("base64url");
+
+
   const imageData = await file.arrayBuffer();
   const fileExtension = imageFormat.split("/")[1];
-  const filePath = join(cfg.assetsRoot, `${videoId}.${fileExtension}`);
+  const filePath = join(cfg.assetsRoot, `${randomString}.${fileExtension}`);
   await Bun.write(filePath, imageData);
 
   const base = `http://localhost:${cfg.port}`;
