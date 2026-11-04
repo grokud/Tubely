@@ -16,7 +16,6 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 
   const token = getBearerToken(req.headers);
   const userID = validateJWT(token, cfg.jwtSecret);
-
   console.log("uploading thumbnail for video", videoId, "by user", userID);
 
   const formData = await req.formData();
@@ -37,16 +36,18 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   }
 
   const imageFormat = file.type;
-  if (imageFormat !== "image/png" || imageFormat !== "image/jpeg" as string) {
+  if (!imageFormat.startsWith("image/")) {
       throw new BadRequestError("Not an image file format");
   }
 
   const imageData = await file.arrayBuffer();
-  const bytes = new Uint8Array(imageData)
   const fileExtension = imageFormat.split("/")[1];
-  const filePath = join(cfg.assetsRoot, videoId, `.${fileExtension}`);
-  await Bun.write(filePath, bytes);
-  const thumbnailUrl = `http://localhost:${cfg.port}${filePath}`;
+  const filePath = join(cfg.assetsRoot, `${videoId}.${fileExtension}`);
+  await Bun.write(filePath, imageData);
+
+  const base = `http://localhost:${cfg.port}`;
+  const fileName = `${videoId}.${fileExtension}`;
+  const thumbnailUrl = new URL(`/assets/${fileName}`, base).href;
   if (video) { 
       video.thumbnailURL = thumbnailUrl;
       updateVideo(cfg.db, video)
