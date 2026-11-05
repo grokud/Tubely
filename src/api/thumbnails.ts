@@ -4,11 +4,13 @@ import { getVideo, updateVideo } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { join } from "path"
+import { randomBytes } from "node:crypto";
 import { BadRequestError, UserForbiddenError } from "./errors";
 
 
 
 export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
+  const MAX_UPLOAD_SIZE = 10485760;
   const { videoId } = req.params as { videoId?: string };
   if (!videoId) {
     throw new BadRequestError("Invalid video ID");
@@ -24,7 +26,6 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 	  throw new BadRequestError("Thumbnail file missing");
   }
 
-  const MAX_UPLOAD_SIZE = 10485760;
   if (file.size > MAX_UPLOAD_SIZE) {
 	  throw new BadRequestError("Exceeds the maximum size");
   }
@@ -40,7 +41,6 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
       throw new BadRequestError("Not an image file format");
   }
 
-  const { randomBytes } = await import('node:crypto');
   const randomString = randomBytes(32).toString("base64url");
 
 
@@ -50,7 +50,7 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   await Bun.write(filePath, imageData);
 
   const base = `http://localhost:${cfg.port}`;
-  const fileName = `${videoId}.${fileExtension}`;
+  const fileName = `${randomString}.${fileExtension}`;
   const thumbnailUrl = new URL(`/assets/${fileName}`, base).href;
   if (video) { 
       video.thumbnailURL = thumbnailUrl;
