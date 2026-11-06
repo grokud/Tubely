@@ -11,6 +11,36 @@ import { type ApiConfig } from "../config";
 
 
 
+async function processVideoForFastStart(inputFilePath: string) {
+    const outputFilePath = `${inputFilePath}.processed`;
+    const proc = Bun.spawn([
+        "ffmpeg",
+        "-i",
+        inputFilePath,
+        "-movflags",
+        "faststart",
+        "-map_metadata",
+        "0",
+        "-codec",
+        "copy",
+        "-f",
+        "mp4",
+        outputFilePath,
+    ], {
+        stderr: "pipe",
+        stdout: "pipe",
+    });
+
+    const [stderr, exitCode] = await Promise.all([
+        new Response(proc.stderr).text(),
+        proc.exited,
+    ]);
+
+    if (exitCode !== 0) { throw new Error(stderr.trim()); }
+    return outputFilePath;
+}
+
+
 async function getVideoAspectRatio(filePath: string) {
     const proc = Bun.spawn([
         "ffprobe",
@@ -86,11 +116,20 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   const randomString = randomBytes(32).toString("base64url");
   const filePath = join(cfg.assetsRoot, `${randomString}.mp4`);
   await Bun.write(filePath, videoData);
-  console.log(getVideoAspectRatio(filePath));
+
+  const processedFilePath = await processVideoForFastStart(filePath);
+  const aspectRatio = await getVideoAspectRatio(filePath);
+  console.log(processedFilePath, aspectRatio);
   /*
    * put the video object into S3
   try { 
-      const s3file = S3Client.file(`${filePath}`);
+      const aspectRatio = await getVideoAspectRatio(filePath);
+      const processedFilePath = await processVideoForFastStart(filePath);
+
+      const s3file = S3Client.file(`${aspectRatio}/${filePath}`); 
+   * or upload the processed faststart video
+
+      const s3file = S3Client.file(processedFilePath);
       await s3file.write(videoData, {
           type: "video/mp4"
       });
