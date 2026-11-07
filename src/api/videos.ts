@@ -1,4 +1,4 @@
-import  type { BunRequest } from "bun";
+import  { type BunRequest } from "bun";
 //import { unlink } from "node:fs/promises";
 //import { S3Client } from "bun";
 import { randomBytes } from "node:crypto";
@@ -7,8 +7,26 @@ import { respondWithJSON } from "./json";
 import { BadRequestError, UserForbiddenError } from "./errors";
 import { getBearerToken, validateJWT } from "../auth";
 import { getVideo, updateVideo } from "../db/videos";
+import { type Video } from "../db/videos";
 import { type ApiConfig } from "../config";
 
+
+
+function generatePresignedURL(cfg: ApiConfig, key: string, expireTime: number) {
+    const presignedURL = cfg.s3Client.presign(key, {
+        expiresIn: expireTime,
+    });
+    return presignedURL;
+}
+
+function dbVideoToSignedVideo(cfg: ApiConfig, video: Video) {
+    if (video && video.videoURL) {
+        const presignedURL = generatePresignedURL(cfg, video.videoURL, 300);
+        video.videoURL = presignedURL;
+        return updateVideo(cfg.db, video);
+
+    } 
+}
 
 
 async function processVideoForFastStart(inputFilePath: string) {
